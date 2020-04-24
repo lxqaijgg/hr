@@ -1,1 +1,6 @@
-Design Patterns Remain Relevant
+Design Patterns Remain Relevant设计模式存在意义
+问心自问, "如何去设计？交互设计的意义是啥？" 答案是设计模式。设计模式来自于人类对软件的使用和感知，人的感觉和心里是不会变的，并且这些设计模式和人类的
+感觉，心里相互作用，不能单独拿出设计模式，脱离人类主体来说。这些模式经久不衰的一个原因也是因为人们想要基于这些软件来完成大大小小的任务。举例来说：人们
+总是想在屏幕里搜索东西；输入数据；创建，控制或者操作数据；管理财务和支付；收发信息和文件给其他人。Design patterns form the building blocks for UIs for any screen
+更重要的是[what's more]，这种在模式中思考并且发现更好的模式，是一种非常符合[in line with]在当今时局，如何进行软件和交互设计。
+
