@@ -1,0 +1,2 @@
+useradd --comment 'gitlab-runner' --create-home gitlab-runner --shell /bin/bash
+usermod -g root gitlab-runner
