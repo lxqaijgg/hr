@@ -1,0 +1,71 @@
+[SERVICE]
+    flush        5
+    daemon       Off
+    log_level    info
+    # Enable/Disable the built-in HTTP Server for metrics
+    Parsers_File    test_parser.conf
+    http_server  Off
+    http_listen  0.0.0.0
+    http_port    2020
+    
+[INPUT]
+    name tail
+    tag  rcs-ss
+#    Path /data/workspace/rcs_ss/build/log/scheduling_server/trace/scheduling_server_trace_2021-06-10_*
+    Path /fg/*.log
+    read_from_head  true
+    Multiline   On
+    Mem_Buf_Limit  1G
+    Buffer_Chunk_Size 100M
+    Buffer_Max_Size 400M
+    Parser_Firstline    rcs-ss-log-pattern
+
+[INPUT]
+    name tail
+    tag  mysql-error
+    Path /var/log/mysql/error.log
+    read_from_head  true
+    Multiline   On
+    Mem_Buf_Limit  1G
+    Buffer_Chunk_Size 100M
+    Buffer_Max_Size 400M
+    Parser_Firstline    mysql-error
+
+[OUTPUT]
+    Name  es
+    Match rcs-ss
+    Host  172.20.4.248
+    Port  9200
+#    Index fg_idx
+#    Type  fg_tp
+    Logstash_Format  On
+    Logstash_Prefix  sz-172.20.31.200-rcs-ss-trace
+    Logstash_DateFormat %Y.%m.%d
+
+[OUTPUT]
+    Name  es
+    Match mysql-error
+    Host  172.20.4.248
+    Port  9200
+#    Index fg_idx
+#    Type  fg_tp
+    Logstash_Format  On
+    Logstash_Prefix  sz-172.20.31.200-mysql-error
+    Logstash_DateFormat %Y.%m.%d
+    
+    
+    
+[PARSER]
+    Name    rcs-ss-log-pattern
+    Format  regex
+    Regex   ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}) : <(?<log_lvl>.*?)>(?<body>.*)
+    Time_Key    time
+    Time_Format %Y-%m-%d %H:%M:%S
+    Time_Offset +0800
+[PARSER]
+    Name   mysql-error
+    Format  regex
+    Regex  ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]\S{2}[0-9]{2}:[0-9]{2}:[0-9]{2}\.\d*\S?) (?<levelnum>\d) (?<levelname>\[\S+\]) (?<errcode>\[\S+\]) (?<where>\[\S+\]) (?<detail>.*)
+    Time_Key    time
+    Time_Format %Y-%m-%dT%H:%M:%S
+    Time_Offset +0800
