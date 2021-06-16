@@ -7,7 +7,7 @@
     http_server  Off
     http_listen  0.0.0.0
     http_port    2020
-    
+
 [INPUT]
     name tail
     tag  rcs-ss
@@ -31,6 +31,41 @@
     Buffer_Max_Size 400M
     Parser_Firstline    mysql-error
 
+[INPUT]
+    name tail
+    tag  mongodb-log
+    Path /var/log/mongodb/mongodb.log
+    read_from_head  true
+    Multiline   On
+    Mem_Buf_Limit  1G
+    Buffer_Chunk_Size 100M
+    Buffer_Max_Size 400M
+    Parser_Firstline    mongodb-log
+
+[INPUT]
+    name tail
+    tag  nginx-access
+    Path /var/log/nginx/wms-core-gui.access.log
+    read_from_head  true
+    Multiline   On
+    Mem_Buf_Limit  1G
+    Buffer_Chunk_Size 100M
+    Buffer_Max_Size 400M
+    Parser_Firstline    nginx-access
+
+
+[OUTPUT]
+    Name  es
+    Match nginx-access
+    Host  172.20.4.248
+    Port  9200
+#    Index fg_idx
+#    Type  fg_tp
+    Logstash_Format  On
+    Logstash_Prefix  sz-172.20.31.200-nginx-access
+    Logstash_DateFormat %Y-%m-%d
+
+
 [OUTPUT]
     Name  es
     Match rcs-ss
@@ -40,7 +75,7 @@
 #    Type  fg_tp
     Logstash_Format  On
     Logstash_Prefix  sz-172.20.31.200-rcs-ss-trace
-    Logstash_DateFormat %Y.%m.%d
+    Logstash_DateFormat %Y-%m-%d
 
 [OUTPUT]
     Name  es
@@ -51,21 +86,52 @@
 #    Type  fg_tp
     Logstash_Format  On
     Logstash_Prefix  sz-172.20.31.200-mysql-error
-    Logstash_DateFormat %Y.%m.%d
+    Logstash_DateFormat %Y-%m-%d
+
+[OUTPUT]
+    Name  es
+    Match mongodb-log
+    Host  172.20.4.248
+    Port  9200
+#    Index fg_idx
+#    Type  fg_tp
+    Logstash_Format  On
+    Logstash_Prefix  sz-172.20.31.200-mongodb-log
+    Logstash_DateFormat %Y-%m-%d
     
-    
-    
-[PARSER]
+    [PARSER]
     Name    rcs-ss-log-pattern
     Format  regex
     Regex   ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}) : <(?<log_lvl>.*?)>(?<body>.*)
     Time_Key    time
     Time_Format %Y-%m-%d %H:%M:%S
     Time_Offset +0800
+
 [PARSER]
     Name   mysql-error
     Format  regex
     Regex  ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]\S{2}[0-9]{2}:[0-9]{2}:[0-9]{2}\.\d*\S?) (?<levelnum>\d) (?<levelname>\[\S+\]) (?<errcode>\[\S+\]) (?<where>\[\S+\]) (?<detail>.*)
     Time_Key    time
     Time_Format %Y-%m-%dT%H:%M:%S
-    Time_Offset +0800
+#    Time_Offset +0800
+
+[PARSER]
+    Name   mongodb-log
+    Format  regex
+#    Regex  ^(?<time>[^ ]+)(?: .? )(?<errlocate>\S+)  (?<conprocess>\[.*\]) (?<message>.*)
+    Regex   ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]{2}\S[0-9]{2}:[0-9]{2}:[0-9]{2})(?:.\d+\+\d+)(?: .? )(?<errlocate>\S+)  (?<conprocess>\[.*\]) (?<message>.*)
+    Time_Key    time
+    Time_Format %Y-%m-%dT%H:%M:%S
+#    Time_Offset +0800
+
+[PARSER]
+    Name   nginx-access
+    Format  regex
+    Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<other>[^\"]*)")?$
+    Time_Key    time
+    Time_Format %Y-%m-%dT%H:%M:%S
+#    Time_Offset +0800
+
+    
+    
+    
