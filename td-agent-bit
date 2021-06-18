@@ -53,6 +53,27 @@
     Buffer_Max_Size 400M
     Parser_Firstline    nginx-access
 
+[INPUT]
+    name tail
+    tag  nginx-error
+    Path /var/log/nginx/wms-core-gui.error.log
+    read_from_head  true
+    Multiline   On
+    Mem_Buf_Limit  1G
+    Buffer_Chunk_Size 100M
+    Buffer_Max_Size 400M
+    Parser_Firstline    nginx-error
+
+[OUTPUT]
+    Name  es
+    Match nginx-error
+    Host  172.20.4.248
+    Port  9200
+#    Index fg_idx
+#    Type  fg_tp
+    Logstash_Format  On
+    Logstash_Prefix  sz-172.20.31.200-nginx-error
+    Logstash_DateFormat %Y-%m-%d
 
 [OUTPUT]
     Name  es
@@ -98,8 +119,9 @@
     Logstash_Format  On
     Logstash_Prefix  sz-172.20.31.200-mongodb-log
     Logstash_DateFormat %Y-%m-%d
-    
-    [PARSER]
+
+
+[PARSER]
     Name    rcs-ss-log-pattern
     Format  regex
     Regex   ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}) : <(?<log_lvl>.*?)>(?<body>.*)
@@ -129,9 +151,14 @@
     Format  regex
     Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<other>[^\"]*)")?$
     Time_Key    time
-    Time_Format %Y-%m-%dT%H:%M:%S
+    Time_Format %d/%b/%Y:%H:%M:%S
 #    Time_Offset +0800
 
-    
-    
-    
+
+[PARSER]
+    Name   nginx-error
+    Format  regex
+    Regex  ^(?<time>[^ ]+\s[^ ]+) (?<logtype>\[.*\]) (?<message>.*)
+    Time_Key    time
+    Time_Format %Y/%m/%d %H:%M:%S
+#    Time_Offset +0800
