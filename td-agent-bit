@@ -10,7 +10,19 @@
 
 [INPUT]
     name tail
-    tag  rcs-ss
+    tag  rcs-ss-trace
+#    Path /data/workspace/rcs_ss/build/log/scheduling_server/trace/scheduling_server_trace_2021-06-10_*
+    Path /fg/trace/*.log
+    read_from_head  true
+    Multiline   On
+    Mem_Buf_Limit  1G
+    Buffer_Chunk_Size 100M
+    Buffer_Max_Size 400M
+    Parser_Firstline    rcs-ss-trace-log
+
+[INPUT]
+    name tail
+    tag  rcs-ss-info
 #    Path /data/workspace/rcs_ss/build/log/scheduling_server/trace/scheduling_server_trace_2021-06-10_*
     Path /fg/*.log
     read_from_head  true
@@ -18,7 +30,19 @@
     Mem_Buf_Limit  1G
     Buffer_Chunk_Size 100M
     Buffer_Max_Size 400M
-    Parser_Firstline    rcs-ss-log-pattern
+    Parser_Firstline    rcs-ss-info-log
+
+[INPUT]
+    name tail
+    tag  rcs-ss-debug
+#    Path /data/workspace/rcs_ss/build/log/scheduling_server/trace/scheduling_server_trace_2021-06-10_*
+    Path /fg/debug/*.log
+    read_from_head  true
+    Multiline   On
+    Mem_Buf_Limit  1G
+    Buffer_Chunk_Size 100M
+    Buffer_Max_Size 400M
+    Parser_Firstline    rcs-ss-debug-log
 
 [INPUT]
     name tail
@@ -89,7 +113,7 @@
 
 [OUTPUT]
     Name  es
-    Match rcs-ss
+    Match rcs-ss-trace
     Host  172.20.4.248
     Port  9200
 #    Index fg_idx
@@ -97,6 +121,29 @@
     Logstash_Format  On
     Logstash_Prefix  sz-172.20.31.200-rcs-ss-trace
     Logstash_DateFormat %Y-%m-%d
+
+[OUTPUT]
+    Name  es
+    Match rcs-ss-info
+    Host  172.20.4.248
+    Port  9200
+#    Index fg_idx
+#    Type  fg_tp
+    Logstash_Format  On
+    Logstash_Prefix  sz-172.20.31.200-rcs-ss-info
+    Logstash_DateFormat %Y-%m-%d
+
+[OUTPUT]
+    Name  es
+    Match rcs-ss-debug
+    Host  172.20.4.248
+    Port  9200
+#    Index fg_idx
+#    Type  fg_tp
+    Logstash_Format  On
+    Logstash_Prefix  sz-172.20.31.200-rcs-ss-debug
+    Logstash_DateFormat %Y-%m-%d
+
 
 [OUTPUT]
     Name  es
@@ -119,15 +166,33 @@
     Logstash_Format  On
     Logstash_Prefix  sz-172.20.31.200-mongodb-log
     Logstash_DateFormat %Y-%m-%d
-
-
-[PARSER]
-    Name    rcs-ss-log-pattern
+    
+    
+    
+ [PARSER]
+    Name    rcs-ss-trace-log
     Format  regex
     Regex   ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}) : <(?<log_lvl>.*?)>(?<body>.*)
     Time_Key    time
     Time_Format %Y-%m-%d %H:%M:%S
     Time_Offset +0800
+
+[PARSER]
+    Name    rcs-ss-info-log
+    Format  regex
+    Regex   ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}) : <(?<log_lvl>.*?)>(?<body>.*)
+    Time_Key    time
+    Time_Format %Y-%m-%d %H:%M:%S
+    Time_Offset +0800
+
+[PARSER]
+    Name    rcs-ss-debug-log
+    Format  regex
+    Regex   ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{6}) : <(?<log_lvl>.*?)>(?<body>.*)
+    Time_Key    time
+    Time_Format %Y-%m-%d %H:%M:%S
+    Time_Offset +0800
+
 
 [PARSER]
     Name   mysql-error
