@@ -1,0 +1,11 @@
+mkdir /soy && cd /soy && git init &&　git pull https://github.com/wolfcw/libfaketime.git && cd src
+
+yum -y install  gcc  &&　make && make install
+
+docker run -itd --name soya -v /usr/local/lib/faketime:/usr/local/lib/faketime  library/centos /bin/bash
+# within container soya execute
+docker exec -it soya /bin/bash
+export LD_PRELOAD=/usr/local/lib/faketime/libfaketime.so.1
+export FAKETIME="@2020-12-24 20:30:00"
+
+z
