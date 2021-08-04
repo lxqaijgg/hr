@@ -1,3 +1,59 @@
+======================================================================================================================
+[jh]
+docker pull fluent/fluent-bit:1.7
+docker run -it --name soya  -v /soy/pz/:/fluent-bit/etc/ fluent/fluent-bit:1.7
+docker ps -a |grep fluent|awk '{print $1}'|xargs docker rm -f
+这个是用容器部署的，请把宿主机的日志路径挂到容器里，并在input的章节里指向容器里的路径。
+
+[root@hot-node1-k8s pz]# cat fluent-bit.conf 
+[SERVICE]
+    flush        5
+    daemon       Off
+    log_level    info
+    # Enable/Disable the built-in HTTP Server for metrics
+    Parsers_File    parser.conf
+    http_server  Off
+    http_listen  0.0.0.0
+    http_port    2020
+
+[INPUT]
+    name Tail
+    tag  battle-log
+#    Path /soy/pz/battle_cplus*.log
+    Path /fluent-bit/etc/battle_cplus*.log
+    read_from_head  true
+    Multiline   On
+    Mem_Buf_Limit  1G
+    Buffer_Chunk_Size 100M
+    Buffer_Max_Size 400M
+    Parser_Firstline    battle-log
+
+[OUTPUT]
+    Name  es
+    Match battle-log
+    Host  172.16.0.189
+    Port  9200
+    HTTP_User  elastic
+    HTTP_Passwd ingcreations
+#    Index fg_idx
+#    Type  fg_tp
+    Logstash_Format  On
+    Logstash_Prefix  battle-log-172.16.0.135
+    Logstash_DateFormat %Y-%m-%d
+    
+    
+[root@hot-node1-k8s pz]# cat parser.conf 
+[PARSER]
+    Name   battle-log
+    Format  regex
+    Regex  ^(?<time>[0-9]{4}\-[0-9]{2}\-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}) (?<level>(INFO|ERROR))\s+(?<msg>\[.+\]$)
+    Time_Key    time
+    Time_Format %Y-%m-%d %H:%M:%S
+#    Time_Offset +0800
+
+======================================================================================================================
+
+
 [SERVICE]
     flush        5
     daemon       Off
