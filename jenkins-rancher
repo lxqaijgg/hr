@@ -1,5 +1,6 @@
 def datestring=new Date().toString().replaceAll(" ","").minus('CST').getAt(3..-1).replaceAll(":","").toLowerCase()
-def harborurl='172.16.0.146/soy/cs/csa'
+def harborurl='aaa'
+def servicename='ingcreations-service-account'
 pipeline{
     agent none
     options{
@@ -9,11 +10,11 @@ pipeline{
         timestamps()
     }
     parameters{
-        string(name: 'other', defaultValue: 'among中文', description: '请输入中文')
         gitParameter name: 'brancename', type: 'PT_BRANCH_TAG',branchFilter: 'origin/(.*)',defaultValue: 'branch_dev',selectedValue: 'DEFAULT',sortMode: 'DESCENDING_SMART',description: 'Select your branch or tag.'
-        booleanParam(name: 'deploy', defaultValue: true, description: '是否发布')   
+        booleanParam(name: 'deploy', defaultValue: false, description: '是否发布')   
         choice(description: '选择集群 ?',name: 'k8scluster',choices: ['hot-dev', 'hot-rc', 'uat-qc'])
         choice(description: '选择namespace ?',name: 'namespace',choices: ['hot-dev', 'general', '360-oa','hot-qc','hot-rc'])
+        choice(description: '选择仓库',name: 'registry',choices: ['local', 'aws', 'qcloud','google'])
     }																				
     stages{
     stage('build stage')
@@ -33,10 +34,34 @@ pipeline{
         {
             script
             {
-                sh 'docker login -u admin -p Harbor12345 172.16.0.146'
-                def imgname=docker.build("${harborurl}:${datestring}","-f ./dockerfile .")
-                imgname.push()
-                sh "docker rmi ${harborurl}:${datestring}"
+                switch (params.registry)
+                {
+                case "local" :
+                    sh 'docker login -u admin -p Harbor12345 172.16.0.146'
+                    harborurl="172.16.0.146/"
+                    def localimgname=docker.build("${harborurl}${k8scluster}/${namespace}/${servicename}:${datestring}","-f ./dockerfile .")
+                    localimgname.push()
+                    sh "docker rmi ${harborurl}${k8scluster}/${namespace}/${servicename}:${datestring}"    
+                    break
+                case "qcloud" :
+                    sh 'docker login -u 105169440 -p pan6539339 ccr.ccs.tencentyun.com'
+                    harborurl="ccr.ccs.tencentyun.com/"                    
+                    break
+                case "aws" :
+                    sh 'aws ecr get-login-password | docker login -u AWS --password-stdin  767511663737.dkr.ecr.us-east-2.amazonaws.com'
+                    harborurl="767511663737.dkr.ecr.us-east-2.amazonaws.com/"    
+                    def awsimgname=docker.build("${harborurl}${servicename}:${datestring}","-f ./dockerfile .")
+                    awsimgname.push()
+                    sh "docker rmi ${harborurl}${servicename}:${datestring}"    
+                    break
+                case "google" :
+                    sh 'cat /data/application/general-image-repository-admin.json | docker login -u _json_key --password-stdin https://asia.gcr.io'
+                    harborurl=='https://asia.gcr.io'
+                    break
+                default :
+                    echo "please select a registry"
+                    break
+                }
             }
         }
     }
@@ -45,7 +70,13 @@ pipeline{
         agent any
         steps
         {
-            script{ sh "kubectl --kubeconfig /root/.kube/${k8scluster}  set image deployment/ingcreations-service-account ingcreations-service-account=${harborurl}:${datestring} -n ${namespace}" }
+            script
+            {
+              if (params.deploy)
+              { sh "kubectl --kubeconfig /root/.kube/${k8scluster}  set image deployment/${servicename} ${servicename}=${harborurl}${k8scluster}/${namespace}/${servicename}:${datestring} -n ${namespace}"}
+              else
+              { echo "only build not deploy" }
+            }
         }
     }
     stage('health stage')
@@ -53,7 +84,6 @@ pipeline{
       agent any
       steps
        {
-          echo "${params.other}"
           echo "${env.deploy}"
           echo "${params.k8scluster}---${params.namespace}"
           script{
@@ -66,3 +96,12 @@ pipeline{
     }
  }
 }
+
+
+
+
+
+
+
+
+
