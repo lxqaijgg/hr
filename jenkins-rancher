@@ -3,7 +3,8 @@ def harborurl='172.16.0.146'
 def qcloudurl='ccr.ccs.tencentyun.com/ingcreations-dev'
 def googleurl='https://asia.gcr.io'
 def awsurl='767511663737.dkr.ecr.us-east-2.amazonaws.com'
-def servicename='ingcreations-service-account'
+def servicename='ingcreations-herog-gm'                                //rancher上的deployment名字
+def giturladds='https://git.whoot.com/ingcreations-rol/gm-golang.git'  //git仓库地址，后面有通过这个变量取值
 pipeline{
     agent none
     options{
@@ -14,11 +15,11 @@ pipeline{
     }
     parameters{
         gitParameter name: 'brancename', type: 'PT_BRANCH_TAG',branchFilter: 'origin/(.*)',defaultValue: 'branch_dev',selectedValue: 'DEFAULT',sortMode: 'DESCENDING_SMART',description: 'Select your branch or tag.'
-        booleanParam(name: 'deploy', defaultValue: false, description: '是否发布')   
+        booleanParam(name: 'deploy', defaultValue: false, description: '是否发布到内网')   
         choice(description: '选择集群 ?',name: 'k8scluster',choices: ['hot-dev', 'hot-rc', 'uat-qc'])
         choice(description: '选择namespace ?',name: 'namespace',choices: ['hot-dev', 'general', '360-oa','hot-qc','hot-rc'])
-        booleanParam(name: 'synqcloud', defaultValue: false, description: '是否同步同步到qcloud') 
-        booleanParam(name: 'synaws', defaultValue: false, description: '是否同步同步到aws')
+        booleanParam(name: 'synqcloud', defaultValue: false, description: '是否同步镜像到qcloud') 
+        booleanParam(name: 'synaws', defaultValue: false, description: '是否同步镜像到aws')
 //        booleanParam(name: 'syngoogle', defaultValue: false, description: '是否同步同步到google')
 //        choice(description: '选择仓库',name: 'registry',choices: ['local', 'aws', 'qcloud','google'])
     }																				
@@ -29,8 +30,9 @@ pipeline{
        steps
        {
             withEnv(['PATH+EXTRA=/usr/sbin:/usr/bin:/sbin:/bin']){sh "ls && pwd"}
-            checkout([$class: 'GitSCM',branches: [[name: "${params.brancename}"]],doGenerateSubmoduleConfigurations: false, extensions: [], gitTool: 'Default', submoduleCfg: [],userRemoteConfigs: [[url: 'https://git.whoot.com/ingcreations-plateform/account-golang.git',credentialsId: 'jenkinsfile',]] ])
-            sh 'export GOPATH=${WORKSPACE}/.. && PATH=${GOPATH}:$PATH && /usr/local/go1.16/bin/go get -u github.com/ingcreations-dev/gokits && /usr/local/go1.16/bin/go get -d -v ./... && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 /usr/local/go1.16/bin/go build -o account application.go'
+            checkout([$class: 'GitSCM',branches: [[name: "${params.brancename}"]],doGenerateSubmoduleConfigurations: false, extensions: [], gitTool: 'Default', submoduleCfg: [],userRemoteConfigs: [[url: "${giturladds}",credentialsId: 'jenkinsfile',]] ])
+            sh '/usr/local/go1.16/bin/go get -d -v ./... && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 /usr/local/go1.16/bin/go build -o gm "这里是取自旧的job的服务名字go build 出来的可执行文件名字" application.go'
+//export export GOROOT=/usr/local/go export GOPATH=$WORKSPACE/..  PATH=$GOPATH/bin:$GOROOT/bin:$PATH  GOPRIVATE=*.whoot.com &&
        }
     }
     stage('docker stage')
@@ -42,7 +44,6 @@ pipeline{
             {
                 withDockerRegistry([ credentialsId: "146harborlogin", url: "https://172.16.0.146" ]) 
                 {
-//                sh "docker login -u admin -p Harbor12345 ${harborurl}"
                 def localimgname=docker.build("${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}","-f ./dockerfile .")
                 localimgname.push()
                 }
@@ -82,7 +83,6 @@ pipeline{
                 {
                     withDockerRegistry([ credentialsId: "qcloudharborlogin", url: "https://ccr.ccs.tencentyun.com" ]) 
                     {
-//                    sh 'docker login -u 105169440 -p pan6539339 ccr.ccs.tencentyun.com'
                     sh "docker tag  ${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}  ${qcloudurl}/${servicename}:${datestring} && docker push ${qcloudurl}/${servicename}:${datestring} && docker rmi ${qcloudurl}/${servicename}:${datestring}"
                     }
                 }
@@ -93,8 +93,6 @@ pipeline{
     }
  }
 }
-
-
 
 
 
