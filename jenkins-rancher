@@ -40,9 +40,12 @@ pipeline{
         {
             script
             {
-                sh "docker login -u admin -p Harbor12345 ${harborurl}"
+                withDockerRegistry([ credentialsId: "146harborlogin", url: "https://172.16.0.146" ]) 
+                {
+//                sh "docker login -u admin -p Harbor12345 ${harborurl}"
                 def localimgname=docker.build("${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}","-f ./dockerfile .")
                 localimgname.push()
+                }
             }
         }
     }
@@ -77,8 +80,11 @@ pipeline{
                 }
                 if (params.synqcloud)
                 {
-                    sh 'docker login -u 105169440 -p pan6539339 ccr.ccs.tencentyun.com'
+                    withDockerRegistry([ credentialsId: "qcloudharborlogin", url: "https://ccr.ccs.tencentyun.com" ]) 
+                    {
+//                    sh 'docker login -u 105169440 -p pan6539339 ccr.ccs.tencentyun.com'
                     sh "docker tag  ${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}  ${qcloudurl}/${servicename}:${datestring} && docker push ${qcloudurl}/${servicename}:${datestring} && docker rmi ${qcloudurl}/${servicename}:${datestring}"
+                    }
                 }
                 
                 sh "docker rmi ${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}"    
@@ -87,7 +93,6 @@ pipeline{
     }
  }
 }
-
 
 
 
