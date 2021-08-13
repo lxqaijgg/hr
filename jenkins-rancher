@@ -1,4 +1,106 @@
 def datestring=new Date().toString().replaceAll(" ","").minus('CST').getAt(3..-1).replaceAll(":","").toLowerCase()
+def harborurl='172.16.0.146'
+def qcloudurl='ccr.ccs.tencentyun.com/ingcreations-dev'
+def googleurl='https://asia.gcr.io'
+def awsurl='767511663737.dkr.ecr.us-east-2.amazonaws.com'
+def servicename='ingcreations-service-account'
+pipeline{
+    agent none
+    options{
+        disableConcurrentBuilds()
+        skipDefaultCheckout()
+        timeout(time: 1, unit: 'HOURS')
+        timestamps()
+    }
+    parameters{
+        gitParameter name: 'brancename', type: 'PT_BRANCH_TAG',branchFilter: 'origin/(.*)',defaultValue: 'branch_dev',selectedValue: 'DEFAULT',sortMode: 'DESCENDING_SMART',description: 'Select your branch or tag.'
+        booleanParam(name: 'deploy', defaultValue: false, description: '是否发布')   
+        choice(description: '选择集群 ?',name: 'k8scluster',choices: ['hot-dev', 'hot-rc', 'uat-qc'])
+        choice(description: '选择namespace ?',name: 'namespace',choices: ['hot-dev', 'general', '360-oa','hot-qc','hot-rc'])
+        booleanParam(name: 'synqcloud', defaultValue: false, description: '是否同步同步到qcloud') 
+        booleanParam(name: 'synaws', defaultValue: false, description: '是否同步同步到aws')
+//        booleanParam(name: 'syngoogle', defaultValue: false, description: '是否同步同步到google')
+//        choice(description: '选择仓库',name: 'registry',choices: ['local', 'aws', 'qcloud','google'])
+    }																				
+    stages{
+    stage('build stage')
+    {
+       agent any
+       steps
+       {
+            withEnv(['PATH+EXTRA=/usr/sbin:/usr/bin:/sbin:/bin']){sh "ls && pwd"}
+            checkout([$class: 'GitSCM',branches: [[name: "${params.brancename}"]],doGenerateSubmoduleConfigurations: false, extensions: [], gitTool: 'Default', submoduleCfg: [],userRemoteConfigs: [[url: 'https://git.whoot.com/ingcreations-plateform/account-golang.git',credentialsId: 'jenkinsfile',]] ])
+            sh 'export GOPATH=${WORKSPACE}/.. && PATH=${GOPATH}:$PATH && /usr/local/go1.16/bin/go get -u github.com/ingcreations-dev/gokits && /usr/local/go1.16/bin/go get -d -v ./... && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 /usr/local/go1.16/bin/go build -o account application.go'
+       }
+    }
+    stage('docker stage')
+    {
+        agent any
+        steps
+        {
+            script
+            {
+                sh "docker login -u admin -p Harbor12345 ${harborurl}"
+                def localimgname=docker.build("${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}","-f ./dockerfile .")
+                localimgname.push()
+            }
+        }
+    }
+    stage('deploy stage')
+    {
+        agent any
+        steps
+        {
+            script
+            {
+              if (params.deploy)
+              {
+                  sh "kubectl --kubeconfig /root/.kube/${k8scluster}  set image deployment/${servicename} ${servicename}=${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring} -n ${namespace}"
+                  echo "do helath check"                  
+              }
+              else
+              { echo "only build not deploy" }
+            }
+        }
+    }
+    stage('synimg stage')
+    {
+        agent any
+        steps
+        {
+            script
+            {
+                if (params.synaws)
+                {
+                    sh 'aws ecr get-login-password | docker login -u AWS --password-stdin  767511663737.dkr.ecr.us-east-2.amazonaws.com'
+                    sh "docker tag  ${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}   ${awsurl}/${servicename}:${datestring} && docker push ${awsurl}/${servicename}:${datestring} && docker rmi ${awsurl}/${servicename}:${datestring}"
+                }
+                if (params.synqcloud)
+                {
+                    sh 'docker login -u 105169440 -p pan6539339 ccr.ccs.tencentyun.com'
+                    sh "docker tag  ${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}  ${qcloudurl}/${servicename}:${datestring} && docker push ${qcloudurl}/${servicename}:${datestring} && docker rmi ${qcloudurl}/${servicename}:${datestring}"
+                }
+                
+                sh "docker rmi ${harborurl}/${k8scluster}/${namespace}/${servicename}:${datestring}"    
+            }
+        }
+    }
+ }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+def datestring=new Date().toString().replaceAll(" ","").minus('CST').getAt(3..-1).replaceAll(":","").toLowerCase()
 def harborurl='aaa'
 def servicename='ingcreations-service-account'
 pipeline{
