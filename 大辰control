@@ -1,0 +1,300 @@
+import java.io.*
+import java.io.File.*
+pipeline {
+    agent none
+    environment { 
+                def ppgt = 'http://dachen:dachenadmin@gitlab.dachentech.com/dachen/lxqpp.git'
+                def pppz= '6c75becf-532d-48d0-aa6b-8cfc3d1a0dba'
+    }
+    parameters{
+        string(name: 'shj', defaultValue: 'dev-ysq-hyzq', description: 'source envriment')
+        string(name: 'dhj', defaultValue: 'dev-ysq-hyzq', description: 'dest envriment')
+        string(name: 'pjnm', defaultValue: 'pjnm', description: 'project name')
+        string(name: 'jnt', defaultValue: 'jetty', description: 'jetty/netty')
+        string(name: 'zx', defaultValue: 'apollo', description: 'config/apollo/local')
+        string(name: 'dk', defaultValue: '10086', description: 'port')
+        string(name: 'bo', defaultValue: 'war', description: 'war/jar/web')
+    }
+
+    stages {
+        
+        stage('gen pipe') {
+            agent{label 'jenkins'}
+            steps{
+                sh 'touch start.sh && rm -rf .git *'    
+                git credentialsId: "${pppz}", url: "${ppgt}"
+                script{
+                    println "${pjnm},${jnt},${dk},${zx},${bo},${shj},${dhj}"
+new File("${WORKSPACE}/k8s-dev-ysq-hyzq-${pjnm}").append("""import java.io.*;
+import groovy.sql.Sql
+pipeline {
+    agent none
+    environment { 
+                def DZ = "http://dachen:dachenadmin@gitlab.dachentech.com/server/${pjnm}.git"
+                def PZ= '6c75becf-532d-48d0-aa6b-8cfc3d1a0dba'
+    }   
+    stages { 
+        stage('Build') {
+            agent{label 'jenkins'}
+            steps{
+                script{
+                    def sj=new Date()
+                    println(sj)
+                    def sjc=sj.toString().replaceAll(" ","").minus('CST').getAt(3..-1).replaceAll(":","").toLowerCase()
+                    println (sjc)
+                    node{
+                        stage('get clone'){
+                                sh 'rm -rf *'
+                                git credentialsId: "\${PZ}", url: "\${DZ}" 
+                        }
+                        stage('mvn'){
+                            sh'/bin/mvn -T 1C clean install -Preleases -Dmaven.test.skip=true'
+                        }
+                        stage('make image'){
+                            sh "cp \${WORKSPACE}/target/${pjnm}.${bo} \${WORKSPACE}/"
+                            new File("\${WORKSPACE}/start.sh").write(\"\"\"#!/bin/bash
+mkdir -p /vol/${pjnm} 2>>/dev/null
+ln -sf /vol/${pjnm} /data/program/${pjnm}
+JAVA_HOME=/data/program/jdk8
+PATH=\\\$PATH:\\\$JAVA_HOME/bin
+sed -i "s/^securerandom.source/#&/" /data/program/jdk8/jre/lib/security/java.security
+sed -i "117a securerandom.source=file:/dev-ysq-hyzq/urandom" /data/program/jdk8/jre/lib/security/java.security
+JAVA_OPTS='-Xmx256m -Xms128m -XX:MaxNewSize=64m -XX:NativeMemoryTracking=detail -Xdebug -Xnoagent -Djava.compiler=NONE -Dfile.encoding=UTF8 -Duser.timezone=GMT+08' 
+cd /data/program/${pjnm} 
+num=`date "+%S"` 
+sed -i "s/ranknum/\\\$num/g" ./bootstrap.properties
+java \\\$JAVA_OPTS -jar /data/program/${pjnm}/${pjnm}.war --server.port=${dk} --spring.profiles.active=dev-ysq-hyzq\"\"\")
+                            sh 'chmod 777 start.sh'
+                            new File("\${WORKSPACE}/bootstrap.properties").write(\"\"\"spring.application.name=${pjnm}
+eureka.instance.prefer-ip-address=true
+eureka.client.serviceUrl.defaultZone=http://eureka-server/eureka/
+spring.cloud.config.discovery.enabled=true
+spring.cloud.config.discovery.serviceId=config-server
+spring.cloud.config.profile=dev-ysq-hyzq
+eureka.appinfo.initial.replicate.time=1
+service.${pjnm}.workerId=ranknum
+logging.path=.  \"\"\")
+                            new File("\${WORKSPACE}/Dockerfile").write(\"\"\"FROM 192.168.3.20:5000/library/jdk8-centos7.3:v1.2
+ADD ${pjnm}.${bo} /data/program/${pjnm}/
+ADD start.sh /data/program/${pjnm}/
+ADD bootstrap.properties /data/program/${pjnm}/
+CMD ["/data/program/${pjnm}/start.sh"]\"\"\")                           
+
+                            def customImage = docker.build("192.168.3.20:5000/dev-ysq-hyzq/${pjnm}\${sjc}")
+                            customImage.push()
+                        }
+                        stage('deploy'){
+                             println('beging clear helm')
+           delhl=\"\"\"\${sh(returnStdout: true,script: "/usr/local/bin/kubectl get endpoints -n dev-ysq-hyzq|grep -v 'Terminating'|grep ${pjnm} |awk '{print \\\$2}'")}\"\"\"
+		   println "\${delhl}"
+							 script{
+							     if(delhl != ''){
+							         println "begin dele helm xxxxxxxxxxxxxxxxxxx"
+                           sh "/usr/local/bin/helm del --purge \\\$(/usr/local/bin/helm list -a|grep -w 'dev-ysq-hyzq-${pjnm}'|awk '{print \\\$1}')"
+                             sh 'rm -rf ${pjnm}'
+							     }}
+				
+						
+                            sh '/usr/local/bin/helm create ${pjnm}'
+                             sh 'rm -rf  \${WORKSPACE}/${pjnm}/values.yaml \${WORKSPACE}/${pjnm}/templates/ingress.yaml \${WORKSPACE}/${pjnm}/templates/service.yaml \${WORKSPACE}/${pjnm}/templates/deployment.yaml '
+                             new File("\${WORKSPACE}/${pjnm}/values.yaml").write(\"\"\"
+image:
+  pullPolicy: Always
+  repository: 192.168.3.20:5000/dev-ysq-hyzq/${pjnm}\${sjc}
+  tag: latest
+ingress:
+  annotations:
+  enabled: false
+  hosts:
+  - ${pjnm}.dev-ysq-hyzq.dachentech.com.cn
+  name: ${pjnm}
+  tls:
+replicaCount: 1
+resources:
+  limits:
+    memory: 1024Mi
+  requests:
+    memory: 700Mi
+service:
+  externalPort: 80
+  internalPort: 8213
+  name: ${pjnm}
+  type: ClusterIP
+volumeMounts:
+  mountPath: /vol
+volumes:
+  path: /data/nfs_data/xg/dev-ysq-hyzq/logs
+  server: 192.168.3.52\"\"\") 
+                             new File("\${WORKSPACE}/${pjnm}/templates/deployment.yaml").write(\"\"\"apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "${pjnm}.name" . }}
+  labels:
+    app: {{ template "${pjnm}.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "${pjnm}.name" . }}
+        release: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.internalPort }}
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.nodeSelector | indent 8 }}
+    {{- end }}
+          volumeMounts:
+            - name: nfs
+              mountPath: "{{ .Values.volumeMounts.mountPath }}"
+          securityContext:
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: nfs
+          nfs:
+            server: {{ .Values.volumes.server }}
+            path: "{{ .Values.volumes.path }}"
+\"\"\")
+                             new File("\${WORKSPACE}/${pjnm}/templates/service.yaml").write(\"\"\"apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "${pjnm}.name" . }}
+  labels:
+    app: {{ template "${pjnm}.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.externalPort }}
+      targetPort: {{ .Values.service.internalPort }}
+      protocol: TCP
+      name: {{ .Values.service.name }}
+  selector:
+    app: {{ template "${pjnm}.name" . }}
+    release: {{ .Release.Name }}
+\"\"\")
+                             new File("\${WORKSPACE}/${pjnm}/templates/ingress.yaml").write(\"\"\"{{- if .Values.ingress.enabled -}}
+{{- \\\$serviceName := include "${pjnm}.name" . -}}
+{{- \\\$servicePort := .Values.service.externalPort -}}
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: {{ template "${pjnm}.name" . }}
+  labels:
+    app: {{ template "${pjnm}.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+  annotations:
+    {{- range \\\$key, \\\$value := .Values.ingress.annotations }}
+      {{ \\\$key }}: {{ \\\$value | quote }}
+    {{- end }}
+spec:
+  rules:
+    {{- range \\\$host := .Values.ingress.hosts }}
+    - host: {{ \\\$host }}
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: {{ \\\$serviceName }}
+              servicePort: {{ \\\$servicePort }}
+    {{- end -}}
+  {{- if .Values.ingress.tls }}
+  tls:
+{{ toYaml .Values.ingress.tls | indent 4 }}
+  {{- end -}}
+{{- end -}}
+\"\"\")
+
+ sh '/usr/local/bin/helm install -n "dev-ysq-hyzq-${pjnm}" --namespace dev-ysq-hyzq \${WORKSPACE}/${pjnm}/'
+							 
+						sleep 10	 
+							 
+                         }
+                    }
+                }
+            }
+        }    
+    }
+}
+""")
+                }
+            sh 'git config --global user.email "lxq@example.com" && git config --global user.name "lxq"'
+            sh 'git add -A && git commit -m "\$(date)" && git push origin master '    
+            }
+        }
+        stage('create job'){
+        agent{label 'jenkins'}
+        steps{
+            sh 'rm -rf  ../../jobs/k8s-dev-ysq-hyzq-${pjnm}'
+            script{
+                    new File("${WORKSPACE}/config.xml").append("""<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@2.29">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.3.2"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.3.2">
+      <jobProperties/>
+      <triggers/>
+      <parameters/>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <com.dabsquared.gitlabjenkins.connection.GitLabConnectionProperty plugin="gitlab-plugin@1.5.11">
+      <gitLabConnection></gitLabConnection>
+    </com.dabsquared.gitlabjenkins.connection.GitLabConnectionProperty>
+    <org.jenkinsci.plugins.gitlablogo.GitlabLogoProperty plugin="gitlab-logo@1.0.3">
+      <repositoryName></repositoryName>
+    </org.jenkinsci.plugins.gitlablogo.GitlabLogoProperty>
+    <com.synopsys.arc.jenkinsci.plugins.jobrestrictions.jobs.JobRestrictionProperty plugin="job-restrictions@0.8"/>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@2.60">
+    <scm class="hudson.plugins.git.GitSCM" plugin="git@3.9.1">
+      <configVersion>2</configVersion>
+      <userRemoteConfigs>
+        <hudson.plugins.git.UserRemoteConfig>
+          <url>http://dachen:dachenadmin@gitlab.dachentech.com/dachen/lxqpp.git</url>
+          <credentialsId>6c75becf-532d-48d0-aa6b-8cfc3d1a0dba</credentialsId>
+        </hudson.plugins.git.UserRemoteConfig>
+      </userRemoteConfigs>
+      <branches>
+        <hudson.plugins.git.BranchSpec>
+          <name>*/master</name>
+        </hudson.plugins.git.BranchSpec>
+      </branches>
+      <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+      <submoduleCfg class="list"/>
+      <extensions/>
+    </scm>
+    <scriptPath>k8s-dev-ysq-hyzq-${pjnm}</scriptPath>
+    <lightweight>true</lightweight>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>""") 
+
+sh "curl -XPOST http://192.168.3.82:18080/createItem?name=k8s-dev-ysq-hyzq-${pjnm} --user admin:lxq --data-binary '@config.xml' -H 'Content-Type: text/xml'"
+sh "curl -X POST http://192.168.3.82:18080/job/k8s-dev-ysq-hyzq-${pjnm}/build --user admin:lxq"             
+                
+            }
+        }
+        }
+       
+    }
+    
+}  
