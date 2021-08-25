@@ -1,3 +1,38 @@
+script
+            {
+                File fc=new File("${WORKSPACE}/default.conf")
+                fc.write('    server {\n')
+                fc.append("""         listen       80;
+        server_name  _;
+        root         /usr/share/nginx/html;
+        index       index.html;
+        location / {
+        }
+        location /api/ {
+            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header Host   \$host:\$server_port;
+            proxy_set_header  X-Real-IP  \$remote_addr;
+            client_max_body_size 1000m;
+            proxy_pass  http://ingcreations-service-gmp:9002/;
+        }
+
+        error_page 404 /404.html;
+            location = /40x.html {
+        }
+
+        error_page 500 502 503 504 /50x.html;
+            location = /50x.html {
+        }
+    }
+
+                """)
+                File fd=new File("${WORKSPACE}/dockerfile")
+                fd.write("FROM nginx:1.18\n")
+                fd.append("""COPY ./default.conf  /etc/nginx/conf.d/
+COPY --chown=nginx:nginx ./soya /usr/share/nginx/html
+                """)
+
+
 def datestring=new Date().toString().replaceAll(" ","").minus('CST').getAt(3..-1).replaceAll(":","").toLowerCase()
 def harborurl='172.16.0.146'
 def qcloudurl='ccr.ccs.tencentyun.com/ingcreations-dev'
